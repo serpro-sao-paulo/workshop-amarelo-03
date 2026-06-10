@@ -42,6 +42,25 @@
 
 ## Mistérios Catalogados
 
+> **Passada de 2026-06-10 (revisão da caça aos mistérios).** Achados obtidos cruzando os `legacy-docs` (notas `<!-- NOTA -->` plantadas) com o programa referenciado. As faixas de linha nos `.NSN` marcadas com *a confirmar* ainda precisam ser abertas no código-fonte — só `CALCDSCT` tem linha verificada (via `COMO-LER-NATURAL.md`).
+
+| ID      | Descrição | Onde Encontrado | Impacto Potencial | Confiança |
+| ------- | --------- | --------------- | ----------------- | --------- |
+| MYS-001 | Status do beneficiário (`BN-CD-SIT`) alterado por critério demográfico (idade via `BN-DT-NASC`) | `CADBENEF.NSN` / `BATCHPGT.NSN` — *linha a confirmar* | Situação muda sem ação do operador → bloqueio ou pagamento indevido | MÉDIA |
+| MYS-002 | Limite de dependentes hardcoded (3) contradiz alteração para 5 e a capacidade do DDM | `CADBENEF.NSN` / `CADDEPEND.NSN`; DDM `BENEFICIARIO.BN-QT-DEPEND` — corrob. `legacy-docs/MANUAL-TECNICO-SIFAP-2008.md` §3.2.2 | Dependentes acima do limite ignorados → benefício calculado a menor | ALTA |
+| MYS-003 | Variável `FATOR-K` usada no cálculo sem origem/documentação | `CALCBENF.NSN` — corrob. `legacy-docs/REGRAS-NEGOCIO-2012.md` (nota RN-014) | Multiplicador desconhecido afeta o valor pago; impossível reproduzir sem decifrar | ALTA |
+| MYS-004 | Em dezembro o cálculo muda completamente (13º / abono natalino) | `CALCBENF.NSN` — corrob. `legacy-docs/REGRAS-NEGOCIO-2012.md` (nota RN-014) | Se não replicado, dezembro paga errado para milhões de beneficiários | ALTA |
+| MYS-005 | Truncamento de centavos (arredonda sempre para baixo) → perda sistemática | `CALCBENF.NSN` — corrob. `legacy-docs/REGRAS-NEGOCIO-2012.md` RN-014 | Centavos × milhões = divergência financeira/contábil acumulada | ALTA |
+| MYS-006 | Desconto tipo `'J'` (judicial) ignora o teto de 30% aplicado aos demais | `CALCDSCT.NSN#L142-L148` — corrob. `legado-sifap/COMO-LER-NATURAL.md` | Desconto judicial pode ultrapassar 30% do bruto; replicar errado gera ação judicial | ALTA |
+| MYS-007 | CPFs iniciando em `999` aceitos como teste sem validação real | `CADBENEF.NSN` / `VALCPF` — *linha a confirmar* | Registros de teste em produção; dados sujos / brecha de fraude | MÉDIA |
+| MYS-008 | Região 99 (`BN-CD-REGIAO`) desvia TODAS as validações de elegibilidade | `VALELEG.NSN` — corrob. `legacy-docs/REGRAS-NEGOCIO-2012.md` §4.2 (nota) + RN-005 | "Bypass do Roberto": pagamentos sem checagem; risco de fraude e apontamento do TCU | ALTA |
+| MYS-009 | Ordenação batch por `BN-NM-BENEF` (alfabética) virou dependência dos totalizadores | `BATCHPGT.NSN` — corrob. `legacy-docs/REGRAS-NEGOCIO-2012.md` §5 (nota) | Mudar a ordem quebra acumuladores e a conciliação com o SIAFI | ALTA |
+| MYS-010 | DDM `AUDITORIA` (FNR 153) ausente das docs de 1997 e 2008 (inconsistência doc × sistema) | `adabas-ddms/AUDITORIA.ddm` — corrob. `MANUAL-TECNICO-SIFAP-2008.md` §2.3 e `ARQUITETURA-ORIGINAL-1997.md` §3.1 | Trilha de auditoria não documentada → lacuna de rastreabilidade | ALTA |
+
+_Tabela-modelo vazia mantida abaixo apenas para referência de formato._
+
+### Tabela-modelo (em branco)
+
 > Classificação (caminho de resolução): **blocks-stage-2** (resolver antes do Estágio 2), **needs-investigation** (resposta provável em outro arquivo), **needs-facilitator** (conhecimento de domínio/mentor), **parked** (fora de escopo). Ordenado por severidade.
 
 | ID      | Descrição | Onde Encontrado | Impacto Potencial | Confiança |
@@ -124,7 +143,7 @@
 
 ## Resumo
 
-- Total de mistérios encontrados: 7
+- Total de mistérios encontrados: 10 (8 ALTA + 2 MÉDIA) 7
 - Confiança alta: 4 (MYS-001, MYS-002, MYS-003, MYS-005)
 - Confiança média: 3 (MYS-004, MYS-006, MYS-007)
 - Confiança baixa: 0
