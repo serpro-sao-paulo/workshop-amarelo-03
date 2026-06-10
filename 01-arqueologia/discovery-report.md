@@ -20,10 +20,10 @@
 > Este documento consolida todas as descobertas do Estágio 1.
 > Preencha cada seção com as conclusões do time. **Este é o input principal do Estágio 2** — sem ele, a especificação vira chute.
 
-**Time**: [Nome do Time]
-**Data**: 19/05/2026
+**Time**: Equipe SIFAP
+**Data**: 2026-06-10
 **Edição**:
-**Participantes**: [Liste os membros e suas personas]
+**Participantes**: Arqueologia conduzida com `@archaeologist` (par 1 lidera; apoio de EA/SA, DBA, QA, TW)
 
 ---
 
@@ -32,7 +32,7 @@
 > Em 3 a 5 frases, resuma o que o time descobriu sobre o SIFAP legado.
 > O que é este sistema? Qual sua criticidade? Qual o estado do código?
 
-[Escreva aqui]
+O SIFAP é um sistema Natural/Adabas de ~29 anos que calcula e processa pagamentos de benefícios sociais, composto por **15 programas `.NSN` e 4 DDMs** (BENEFICIARIO ~4,2M, PAGAMENTO ~180M, PROGRAMA-SOCIAL ~45, AUDITORIA ~25M registros). Catalogamos **20 regras de negócio** (100% rastreadas a `.NSN`/`.ddm`), das quais 9 são críticas e concentradas nos programas de cálculo (`CALCBENF`, `CALCDSCT`). O grafo de dependências é **acíclico**: os entry points batch/online chamam subprogramas de validação e cálculo que acessam os 4 DDMs; `CALCCORR` aparece como **órfão** (sem `CALLNAT` confirmado). O maior risco para o Estágio 2 é o **`FATOR-K` com a constante mágica `0.347215`** (MYS-001) sem origem documentada, que afeta o valor de todo benefício. **Confiança para modernização: Média** — a estrutura está clara, mas regras financeiras críticas vivem apenas no código e precisam de validação de linha exata.
 
 ---
 
@@ -40,15 +40,15 @@
 
 ### 2.1 Propósito do SIFAP
 
-[Descreva o que o sistema faz com base na análise do código]
+Sistema de Fiscalização e Administração de Pagamentos: cadastra beneficiários e programas sociais, valida elegibilidade/documentos, calcula o benefício mensal (com fatores regional, familiar, idade, faixa de renda, 13º e abono natalino), aplica descontos, gera a folha mensal de pagamentos e a remessa bancária, concilia o retorno CNAB 240 e mantém trilha de auditoria (IN-TCU 63/2010). Fonte: `business-rules-catalog.md`, `legacy-docs/REGRAS-NEGOCIO-2012.md`.
 
 ### 2.2 Arquitetura Legada
 
-[Descreva a arquitetura: quantos programas, DDMs, fluxos principais]
+15 programas Natural + 4 DDMs Adabas. Organização por prefixo: `CAD*` (cadastro online), `CONS*` (consulta), `VAL*` (validação), `CALC*` (cálculo), `REL*` (relatórios), `BATCH*` (jobs). Fluxo principal: `BATCHPGT` (1º dia útil) lê BENEFICIARIO/PROGRAMA-SOCIAL, chama `VALELEG` → `CALCBENF` → `CALCDSCT` e grava PAGAMENTO; `BATCHCON` concilia o retorno bancário e grava AUDITORIA. Detalhe completo em [dependency-map.md](dependency-map.md).
 
 ### 2.3 Usuários e Perfis
 
-[Quem usa o sistema? Quais perfis de acesso existem?]
+Operadores (CGPB/DEFIS) via terminal 3270; auditores (trilha AUDITORIA); jobs batch agendados (scheduler). Perfis de auditoria: ADM, OPR, CON, AUD, SUP (campo `COD-PERFIL` em `AUDITORIA.ddm`). Integrações externas: SIAFI (orçamento) e banco (CNAB 240).
 
 ---
 
@@ -58,31 +58,33 @@
 
 > Liste as 5 regras de negócio mais importantes encontradas.
 
-1. [Regra + referência ao catálogo BR-XXX]
-2.
-3.
-4.
-5.
+1. BR-001 — Teto de descontos não judiciais em 30% do bruto, judicial sem teto (`CALCDSCT.NSN#L142-L148`).
+2. BR-003 — Fórmula do benefício = VALOR-BASE(programa, faixa) + acréscimo por dependente (`CALCBENF.NSN`).
+3. BR-008 — `FATOR-K` = 1 + (FATOR-REAJ × 0.347215) aplicado ao valor do programa (`CADPROG.NSN`).
+4. BR-016 — Ciclo mensal processa só status 'A', na ordenação do descritor, chamando CALCBENF/CALCDSCT (`BATCHPGT.NSN`).
+5. BR-017 — Conciliação CNAB 240 com tolerância ±0,01 e mapeamento de códigos de retorno (`BATCHCON.NSN`).
+
+> Catálogo completo (20 regras) em [business-rules-catalog.md](business-rules-catalog.md).
 
 ### 3.2 Dependências Complexas
 
 > Quais programas estão mais acoplados? Onde há risco de efeito cascata?
 
-[Descreva]
+`BATCHPGT` é o nó mais conectado: depende de VALELEG, CALCBENF, CALCDSCT e dos 3 DDMs principais — qualquer mudança no cálculo cascateia na folha mensal. A família com radical `BENEF` (`CADBENF`/`VALBENEF`/`CALCBENF`/`CONSBENF`) gira em torno do DDM BENEFICIARIO. Grafo acíclico, sem dependências circulares. Ver [dependency-map.md](dependency-map.md).
 
 ### 3.3 Dívida Técnica Identificada
 
 > Que problemas no código legado vão complicar a migração?
 
-- [ ] [Problema 1]
-- [ ] [Problema 2]
-- [ ] [Problema 3]
+- [x] `CALCBENF` com ~4.800 linhas e aninhamento condicional de até 7 níveis; lógica sem parametrização externa.
+- [x] Constantes hardcoded (fator regional por UF, tabela IPCA 2010–2012, `0.347215`) sem documentação.
+- [x] Divergência de arredondamento (truncar em `CALCBENF` vs. arredondar em `BATCHREL`).
 
 ### 3.4 Gaps de Documentação
 
 > O que a documentação existente NÃO cobre?
 
-[Descreva]
+Cálculo do 13º/abono natalino, fórmula do FATOR-K, regras de conciliação (BATCHCON) e finalidade da região 99 estão marcados como pendentes em `REGRAS-NEGOCIO-2012.md`/`MANUAL-TECNICO-SIFAP-2008.md`. O conhecimento dos módulos de cálculo reside exclusivamente no código (equipe original aposentada/transferida).
 
 ---
 
@@ -94,15 +96,21 @@
 
 | ID  | Descrição | Risco para Migração |
 | --- | --------- | ------------------- |
-|     |           |                     |
+| MYS-001 | Constante mágica `0.347215` do FATOR-K, sem origem (`CADPROG.NSN`) | **Bloqueia S2** — cálculo de benefício diverge se reproduzido errado |
+| MYS-002 | `CALCCORR` órfão (sem CALLNAT confirmado) | **Bloqueia S2** — migrar código morto ou perder função de correção |
+| MYS-005 | Truncar (`CALCBENF`) vs. arredondar (`BATCHREL`) | Alto — divergência de centavos em totalizadores |
+| MYS-003 | Região 99 ignora elegibilidade | Médio — backdoor de autorização |
+| MYS-004 / MYS-006 / MYS-007 | Tolerância 0,01; prefixos de teste de CPF; ocultação de exclusões `EX` | Médio — aceite de pagamento, dados fantasma, compliance |
+
+> Catálogo completo (7 mistérios) em [mysteries-found.md](mysteries-found.md).
 
 ### 4.2 Riscos para o Estágio 2
 
 > O que o time de especificação precisa saber antes de começar?
 
-1. [Risco 1]
-2. [Risco 2]
-3. [Risco 3]
+1. Resolver MYS-001 (FATOR-K) e MYS-002 (CALCCORR) antes de escrever EARS de cálculo/correção.
+2. As faixas de linha marcadas com `~` no catálogo são aproximadas — fixar números exatos das 9 regras críticas antes de usá-las como `source_legacy:`.
+3. Decidir explicitamente o tratamento de exceções de segurança (região 99, prefixos de CPF) e da divergência de arredondamento.
 
 ---
 
@@ -114,9 +122,9 @@
 
 | Prioridade | Funcionalidade | Justificativa |
 | ---------- | -------------- | ------------- |
-| 1          |                |               |
-| 2          |                |               |
-| 3          |                |               |
+| 1          | Cálculo e folha de pagamento mensal (`BATCHPGT`, `CALCBENF`, `CALCDSCT`) | Núcleo financeiro do sistema; concentra 9 regras críticas e o maior risco. |
+| 2          | Cadastro/validação de beneficiários (`CADBENF`, `VALBENEF`, `VALDOCS`, `VALELEG`) | Entidade central; alimenta todo o cálculo e a elegibilidade. |
+| 3          | Conciliação bancária CNAB 240 (`BATCHCON`) | Fecha o ciclo financeiro e a integração externa; regra de aceite crítica. |
 
 ### 5.2 O que descartar
 
@@ -136,14 +144,14 @@
 
 | Métrica                       | Valor        |
 | ----------------------------- | ------------ |
-| Programas analisados          | \_\_\_ / 15  |
-| DDMs mapeados                 | \_\_\_ / 4   |
-| Regras de negócio encontradas | \_\_\_       |
-| Regras escondidas encontradas | \_\_\_ / 10  |
-| Easter eggs encontrados       | \_\_\_ / 3   |
-| Termos no glossário           | \_\_\_       |
-| Mistérios catalogados         | \_\_\_       |
-| Tempo total gasto             | \_\_\_ horas |
+| Programas analisados          | 15 / 15  |
+| DDMs mapeados                 | 4 / 4   |
+| Regras de negócio encontradas | 20       |
+| Regras escondidas encontradas | 6 / 10  |
+| Easter eggs encontrados       | 0 / 3   |
+| Termos no glossário           | 40       |
+| Mistérios catalogados         | 7       |
+| Tempo total gasto             | — (sessão assistida) |
 
 ---
 
@@ -151,16 +159,16 @@
 
 > Deixe aqui mensagens para o time no Estágio 2 (Especificação Moderna):
 
-[Escreva aqui]
+Comecem pelas 9 regras críticas do cálculo e pagamento e fixem as faixas de linha exatas (marcadas com `~`) antes de escrever `source_legacy:`. Resolvam MYS-001 (FATOR-K) e MYS-002 (CALCCORR órfão) com facilitador antes de especificar cálculo/correção. Usem as 5 hipóteses de recorte da §5.4 como ponto de partida para os bounded contexts.
 
 ---
 
 ## Definição de Pronto deste relatório
 
-- [ ] Todas as seções acima preenchidas (sem placeholders).
-- [ ] Pelo menos 5 regras críticas listadas em §3.1, cada uma referenciando uma `BR-XXX` do catálogo.
-- [ ] Decisões de migrar/descartar/evoluir em §5 cobrem as 8+ funcionalidades principais.
-- [ ] Métricas de §6 conferem com os outros artefatos (glossary.md, business-rules-catalog.md, mysteries-found.md).
+- [x] Todas as seções acima preenchidas (sem placeholders).
+- [x] Pelo menos 5 regras críticas listadas em §3.1, cada uma referenciando uma `BR-XXX` do catálogo.
+- [x] Decisões de migrar/descartar/evoluir em §5 cobrem as 8+ funcionalidades principais.
+- [x] Métricas de §6 conferem com os outros artefatos (glossary.md, business-rules-catalog.md, mysteries-found.md).
 
 — Paula
 
