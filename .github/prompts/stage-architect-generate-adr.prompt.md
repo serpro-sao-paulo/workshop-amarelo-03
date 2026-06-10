@@ -1,7 +1,7 @@
 ---
 description: "Rascunha um Architecture Decision Record (ADR) para uma escolha específica de design que a equipe está fazendo."
 argument-hint: "title=\"Map Adabas MU fields to JSONB vs ElementCollection\""
-agent: agent
+agent: architect
 tools: ['search/codebase', 'edit/editFiles']
 ---
 

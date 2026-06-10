@@ -1,0 +1,365 @@
+openapi: 3.0.3
+info:
+  title: SIFAP 2.0 API
+  version: 0.1.0
+  description: >-
+    Esqueleto OpenAPI do SIFAP 2.0 (Modular Monolith). Gerado por
+    /design-modular-monolith no Estágio 2. Define assinaturas de endpoints
+    por bounded context; schemas e implementação são completados no Estágio 3.
+    Rastreabilidade: cada operação referencia seu REQ-ID em SPECIFICATION.md.
+
+servers:
+  - url: /api/v1
+    description: Base path (REST convention /api/v1/{resource})
+
+tags:
+  - name: beneficiary
+    description: Gestão de Beneficiários
+  - name: program
+    description: Gestão de Programas Sociais
+  - name: payment
+    description: Processamento de Pagamentos
+  - name: reconciliation
+    description: Conciliação Bancária
+  - name: audit
+    description: Trilha de Auditoria
+
+paths:
+  /beneficiaries:
+    post:
+      tags: [beneficiary]
+      summary: Cadastra beneficiário (valida CPF por módulo 11)
+      description: "REQ-001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeneficiaryCreateRequest'
+      responses:
+        '201':
+          description: Beneficiário criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeneficiaryView'
+        '400':
+          description: CPF inválido (módulo 11)
+
+  /beneficiaries/{id}/status:
+    put:
+      tags: [beneficiary]
+      summary: Altera status do beneficiário (bloqueia transição I->A direta)
+      description: "REQ-002"
+      parameters:
+        - $ref: '#/components/parameters/BeneficiaryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChangeRequest'
+      responses:
+        '200':
+          description: Status alterado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeneficiaryView'
+        '409':
+          description: Transição de status não permitida
+
+  /beneficiaries/{id}/eligibility:
+    post:
+      tags: [beneficiary]
+      summary: Verifica elegibilidade do beneficiário em um programa
+      description: "REQ-003"
+      parameters:
+        - $ref: '#/components/parameters/BeneficiaryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EligibilityRequest'
+      responses:
+        '200':
+          description: Resultado da elegibilidade
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EligibilityResult'
+
+  /beneficiaries/{id}/documents:
+    post:
+      tags: [beneficiary]
+      summary: Valida documentação comprobatória
+      description: "REQ-004"
+      parameters:
+        - $ref: '#/components/parameters/BeneficiaryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentsRequest'
+      responses:
+        '200':
+          description: Resultado da validação de documentos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentValidationResult'
+
+  /programs/{id}:
+    get:
+      tags: [program]
+      summary: Consulta programa social e suas faixas
+      description: "REQ-005"
+      parameters:
+        - $ref: '#/components/parameters/ProgramId'
+      responses:
+        '200':
+          description: Programa encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramView'
+        '404':
+          description: Programa não encontrado
+
+  /programs/{id}/value-range:
+    get:
+      tags: [program]
+      summary: Faixa de valor do programa por exercício
+      description: "REQ-005"
+      parameters:
+        - $ref: '#/components/parameters/ProgramId'
+        - name: exercise
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Exercício (ano)
+      responses:
+        '200':
+          description: Faixa de valor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValueRange'
+
+  /payment-cycles:
+    post:
+      tags: [payment]
+      summary: Gera ciclo mensal (apenas ACTIVE, ordem do descritor)
+      description: "REQ-011, REQ-012"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CycleRequest'
+      responses:
+        '201':
+          description: Ciclo gerado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCycleSummary'
+
+  /payments/calculate:
+    post:
+      tags: [payment]
+      summary: Calcula benefício (base + dependentes + descontos com teto 30%)
+      description: "REQ-007, REQ-008, REQ-009, REQ-010"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculateRequest'
+      responses:
+        '200':
+          description: Valor calculado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenefitAmount'
+
+  /payments/{id}:
+    get:
+      tags: [payment]
+      summary: Consulta pagamento
+      description: "REQ-011"
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Pagamento encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentView'
+        '404':
+          description: Pagamento não encontrado
+
+  /reconciliations:
+    post:
+      tags: [reconciliation]
+      summary: Processa retorno bancário CNAB 240 (tolerância +/-0,01)
+      description: "REQ-013, REQ-014"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Arquivo de retorno CNAB 240
+      responses:
+        '201':
+          description: Conciliação processada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationSummary'
+
+  /reconciliations/{paymentId}:
+    get:
+      tags: [reconciliation]
+      summary: Status de conciliação de um pagamento
+      description: "REQ-013"
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status de conciliação
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationStatus'
+
+  /audit-records:
+    get:
+      tags: [audit]
+      summary: Consulta a trilha de auditoria (somente leitura, por perfil)
+      description: "REQ-015 (REQ-016 proíbe escrita: sem POST/PUT/DELETE)"
+      parameters:
+        - name: entity
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Registros de auditoria
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditRecordView'
+
+components:
+  parameters:
+    BeneficiaryId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    ProgramId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    PaymentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    # Schemas são esqueletos; detalhes preenchidos no Estágio 3.
+    BeneficiaryCreateRequest:
+      type: object
+      description: REQ-001
+    StatusChangeRequest:
+      type: object
+      description: REQ-002
+    EligibilityRequest:
+      type: object
+      description: REQ-003
+    EligibilityResult:
+      type: object
+      description: REQ-003
+    DocumentsRequest:
+      type: object
+      description: REQ-004
+    DocumentValidationResult:
+      type: object
+      description: REQ-004
+    BeneficiaryView:
+      type: object
+      description: CPF mascarado (REQ-017)
+    ProgramView:
+      type: object
+      description: REQ-005
+    ValueRange:
+      type: object
+      description: REQ-005
+      properties:
+        min:
+          type: number
+        max:
+          type: number
+    CycleRequest:
+      type: object
+      description: REQ-011
+    PaymentCycleSummary:
+      type: object
+      description: REQ-011, REQ-012
+    CalculateRequest:
+      type: object
+      description: REQ-007, REQ-008
+    BenefitAmount:
+      type: object
+      description: REQ-009, REQ-010
+      properties:
+        gross:
+          type: number
+        totalDeductions:
+          type: number
+        net:
+          type: number
+    PaymentView:
+      type: object
+      description: REQ-011
+    ReconciliationSummary:
+      type: object
+      description: REQ-013, REQ-014
+    ReconciliationStatus:
+      type: object
+      description: REQ-013
+    AuditRecordView:
+      type: object
+      description: REQ-015 (imutável, REQ-016)

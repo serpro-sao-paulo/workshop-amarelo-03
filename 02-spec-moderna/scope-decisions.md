@@ -23,10 +23,10 @@
 > - **Descartar**: não trazer — funcionalidade obsoleta ou desnecessária
 > - **Evoluir**: trazer E melhorar (nova UX, novo fluxo, nova capacidade)
 
-**Time**: [Nome do Time]
-**Data**: 19/05/2026
+**Time**: Equipe SIFAP
+**Data**: 2026-06-10
 **Edição**:
-**Par 1 (Product Owner) responsável**: [Nome]
+**Par 1 (Product Owner) responsável**: Luana
 
 ## Por que isso importa
 
@@ -45,22 +45,23 @@ Pergunte de cada funcionalidade:
 
 ## Decisões por Funcionalidade
 
-| #   | Funcionalidade            | Decisão                      | Justificativa | Regra de Negócio (BR-XXX) | Prioridade           |
-| --- | ------------------------- | ---------------------------- | ------------- | ------------------------- | -------------------- |
-| 1   | Cadastro de Beneficiários | Migrar / Descartar / Evoluir |               |                           | Alta / Média / Baixa |
-| 2   | Consulta de Beneficiários |                              |               |                           |                      |
-| 3   | Registro de Pagamentos    |                              |               |                           |                      |
-| 4   | Processamento Batch       |                              |               |                           |                      |
-| 5   | Cálculo de Benefícios     |                              |               |                           |                      |
-| 6   | Validação de CPF          |                              |               |                           |                      |
-| 7   | Relatórios                |                              |               |                           |                      |
-| 8   | Auditoria                 |                              |               |                           |                      |
-| 9   | Gestão de Usuários        |                              |               |                           |                      |
-| 10  |                           |                              |               |                           |                      |
-| 11  |                           |                              |               |                           |                      |
-| 12  |                           |                              |               |                           |                      |
+| #   | Funcionalidade            | Decisão   | Justificativa | Regra de Negócio (BR-XXX) | Prioridade |
+| --- | ------------------------- | --------- | ------------- | ------------------------- | ---------- |
+| 1   | Cadastro de Beneficiários | Migrar    | Entidade central que alimenta cálculo e elegibilidade (discovery §5.1, prioridade 2). | BR-002 (status A/S/C/I/D) | Alta |
+| 2   | Consulta de Beneficiários | Migrar    | Necessária para operação online (perfis OPR/CON) e auditoria. | — | Média |
+| 3   | Registro de Pagamentos    | Migrar    | Parte do núcleo financeiro; gera os registros do ciclo. | BR-016 | Alta |
+| 4   | Processamento Batch (folha mensal) | Migrar | Núcleo do sistema; gera a folha mensal processando só status 'A' (discovery §5.1, prioridade 1). | BR-016 | Alta |
+| 5   | Cálculo de Benefícios     | Migrar    | Concentra 9 regras críticas (valor base + dependente + FATOR-K). | BR-003, BR-008 | Alta |
+| 6   | Cálculo de Descontos      | Migrar    | Teto de 30% para não judiciais; judicial sem teto. | BR-001 | Alta |
+| 7   | Validação de CPF          | Migrar    | Validação módulo 11 obrigatória no cadastro. | BR-002 (validação cadastral) | Alta |
+| 8   | Conciliação Bancária CNAB 240 | Migrar | Fecha o ciclo financeiro e a integração externa (discovery §5.1, prioridade 3). | BR-017 | Alta |
+| 9   | Auditoria                 | Evoluir   | Migrar a trilha E adicionar imutabilidade técnica (IN-TCU). | — | Alta |
+| 10  | Relatórios (RELPGT/RELAUDIT) | Evoluir | Viram read models por contexto, não módulo próprio. | — | Média |
+| 11  | Cálculo de Correção/Reajuste (CALCCORR) | Descartar (provisório) | `CALCCORR` é órfão (MYS-002) — decidir migrar/descartar após resolver com facilitador. | — | Baixa |
+| 12  | Gestão de Usuários        | Evoluir   | Substituída por autenticação federada gov.br + RBAC (ver ADR-003). | — | Média |
+| 13  | Cálculo do 13º / abono natalino | Descartar (provisório) | Fórmula não confirmada no legado; sem fonte para EARS. Reavaliar em ciclo futuro. | — | Baixa |
 
-> Adicione linhas para cada funcionalidade identificada no `discovery-report.md` do Estágio 1.
+> Decisões derivadas de `discovery-report.md` §5 e dos bounded contexts. Itens "Descartar (provisório)" dependem de resolução de mistério antes do Estágio 3.
 
 ---
 
@@ -70,9 +71,9 @@ Pergunte de cada funcionalidade:
 
 | #   | Funcionalidade Nova | Justificativa | Prioridade | Complexidade |
 | --- | ------------------- | ------------- | ---------- | ------------ |
-| N1  |                     |               |            |              |
-| N2  |                     |               |            |              |
-| N3  |                     |               |            |              |
+| N1  | Imutabilidade técnica da trilha de auditoria (REQ-016) | Legado é append-only por convenção, sem proteção; compliance IN-TCU exige garantia técnica. | Alta | Baixa |
+| N2  | Mascaramento de CPF/valores em logs (REQ-017) | LGPD/OWASP — não existe no terminal 3270 legado. | Alta | Baixa |
+| N3  | API REST + autenticação federada gov.br (ADR-003) | Substitui terminal 3270; SSO e RBAC por perfil. | Alta | Média |
 
 ---
 
@@ -80,25 +81,30 @@ Pergunte de cada funcionalidade:
 
 | Decisão   | Quantidade | Percentual |
 | --------- | ---------- | ---------- |
-| Migrar    |            |            |
-| Descartar |            |            |
-| Evoluir   |            |            |
-| **Total** |            | 100%       |
+| Migrar    | 8          | 62%        |
+| Descartar | 2 (provisório) | 15%    |
+| Evoluir   | 3          | 23%        |
+| **Total** | 13         | 100%       |
 
 ## Riscos de Escopo
 
 > Liste os riscos das decisões tomadas:
 
-| Risco | Probabilidade        | Impacto              | Mitigação |
-| ----- | -------------------- | -------------------- | --------- |
-|       | Alta / Média / Baixa | Alto / Médio / Baixo |           |
+| Risco | Probabilidade | Impacto | Mitigação |
+| ----- | ------------- | ------- | --------- |
+| FATOR-K (MYS-001) com constante `0.347215` sem origem documentada | Alta | Alto | Resolver com facilitador antes de implementar REQ-006; estrutura da fórmula já especificada. |
+| `CALCCORR` órfão (MYS-002) descartado por engano sendo usado | Média | Alto | Confirmar uso real antes do Estágio 3; manter como "descartar provisório". |
+| Divergência de arredondamento truncar vs. arredondar (MYS-005) | Alta | Médio | Definir política única em `shared/money` (ADR pendente / clarify). |
+| 13º/abono natalino fora de escopo gera gap funcional | Média | Médio | Documentar como pendência; reavaliar em ciclo futuro com fórmula confirmada. |
 
 ## Aprovação
 
-- [ ] Par 1 (Product Owner) aprovou as decisões de escopo
-- [ ] Par 2 (Enterprise Architect) validou a viabilidade técnica
+- [x] Par 1 (Product Owner) aprovou as decisões de escopo — Luana, 2026-06-10
+- [x] Par 2 (Enterprise Architect) validou a viabilidade técnica
 - [ ] Par 3 (Technical Lead) confirmou que cabe nas 3 horas do Estágio 3
 - [ ] Time concordou com as prioridades
+
+> ✅ Decisões preenchidas a partir do `discovery-report.md` §5 pelo Par 2 e aprovadas pelo Par 1 (Product Owner — Luana) em 2026-06-10.
 
 > **Aprovação obrigatória na Passagem #2** (~16:00). Sem ela, o Estágio 3 não começa.
 
