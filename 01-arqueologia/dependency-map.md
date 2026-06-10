@@ -28,46 +28,92 @@
 
 ## Diagrama de Dependências entre Programas
 
-> Substitua o exemplo abaixo pelo mapa real do seu time. **Meta:** cobrir todos os 15 programas, sem órfãos.
+> Cobre os **15 programas** `.NSN` e os **4 DDMs**. Arestas `CALLNAT` baseadas na documentação do legado (`legacy-docs/REGRAS-NEGOCIO-2012.md` §5.1 confirma BATCHPGT → CALCBENF e CALCDSCT; `GUIDE.md` acrescenta VALELEG/CALCCORR). Faixas de linha exatas das chamadas devem ser confirmadas na leitura detalhada antes de virarem `source_legacy:`.
 
 ```mermaid
 flowchart TD
- subgraph "Programas Online"
+ subgraph "Programas Online (3270)"
  CADBENF["CADBENF.NSN<br/>Cadastro de Beneficiários"]
- CONBENF["CONBENF.NSN<br/>Consulta de Beneficiários"]
- REGPGTO["REGPGTO.NSN<br/>Registro de Pagamentos"]
+ CADDEPEND["CADDEPEND.NSN<br/>Cadastro de Dependentes"]
+ CADPROG["CADPROG.NSN<br/>Cadastro de Programas"]
+ CONSBENF["CONSBENF.NSN<br/>Consulta de Beneficiários"]
  end
 
  subgraph "Programas Batch"
- BATCHPGT["BATCHPGT.NSN<br/>Processamento em Lote"]
+ BATCHPGT["BATCHPGT.NSN<br/>Processamento Mensal"]
+ BATCHCON["BATCHCON.NSN<br/>Conciliação CNAB 240"]
+ BATCHREL["BATCHREL.NSN<br/>Relatório Consolidado"]
  end
 
- subgraph "Subprogramas"
- CALCBENF["CALCBENF.NSN<br/>Cálculo de Benefícios"]
- VALCPF["VALCPF.NSN<br/>Validação de CPF"]
+ subgraph "Subprogramas de Cálculo"
+ CALCBENF["CALCBENF.NSN<br/>Cálculo do Benefício"]
+ CALCCORR["CALCCORR.NSN<br/>Correção IPCA"]
+ CALCDSCT["CALCDSCT.NSN<br/>Cálculo de Descontos"]
+ end
+
+ subgraph "Subprogramas de Validação"
+ VALBENEF["VALBENEF.NSN<br/>Validação Cadastral"]
+ VALDOCS["VALDOCS.NSN<br/>Validação de Documentos"]
+ VALELEG["VALELEG.NSN<br/>Validação de Elegibilidade"]
+ end
+
+ subgraph "Relatórios"
+ RELPGT["RELPGT.NSN<br/>Relatório de Pagamentos"]
+ RELAUDIT["RELAUDIT.NSN<br/>Relatório de Auditoria"]
  end
 
  subgraph "DDMs Adabas"
- DDM_BENEF[("DDM: BENEFICIARIO")]
- DDM_PGTO[("DDM: PAGAMENTO")]
+ DDM_BENEF[("BENEFICIARIO (150)")]
+ DDM_PROG[("PROGRAMA-SOCIAL (151)")]
+ DDM_PGTO[("PAGAMENTO (152)")]
+ DDM_AUD[("AUDITORIA (153)")]
  end
 
- CADBENF -->|CALLNAT| VALCPF
- CADBENF -->|CALLNAT| CALCBENF
- CADBENF -->|READ/STORE| DDM_BENEF
+ %% Cadastro online
+ CADBENF -->|CALLNAT| VALBENEF
+ CADBENF -->|CALLNAT| VALDOCS
+ CADBENF -->|READ/STORE/UPDATE| DDM_BENEF
+ CADDEPEND -->|READ/STORE/UPDATE| DDM_BENEF
+ CADPROG -->|READ/STORE/UPDATE| DDM_PROG
+ CONSBENF -->|READ| DDM_BENEF
+ CONSBENF -->|READ| DDM_PGTO
 
- REGPGTO -->|CALLNAT| CALCBENF
- REGPGTO -->|READ/STORE| DDM_PGTO
+ %% Validações
+ VALBENEF -->|READ| DDM_BENEF
+ VALDOCS -->|READ| DDM_BENEF
+ VALELEG -->|READ| DDM_BENEF
+ VALELEG -->|READ| DDM_PROG
 
- CONBENF -->|READ| DDM_BENEF
+ %% Cálculos
+ CALCBENF -->|READ| DDM_BENEF
+ CALCBENF -->|READ| DDM_PROG
+ CALCBENF -->|STORE| DDM_PGTO
+ CALCCORR -->|READ/UPDATE| DDM_PGTO
+ CALCDSCT -->|READ| DDM_BENEF
+ CALCDSCT -->|READ/UPDATE| DDM_PGTO
 
+ %% Batch mensal
+ BATCHPGT -->|CALLNAT| VALELEG
  BATCHPGT -->|CALLNAT| CALCBENF
- BATCHPGT -->|READ/UPDATE| DDM_PGTO
+ BATCHPGT -->|CALLNAT| CALCDSCT
+ BATCHPGT -.->|CALLNAT?| CALCCORR
  BATCHPGT -->|READ| DDM_BENEF
+ BATCHPGT -->|READ| DDM_PROG
+ BATCHPGT -->|STORE| DDM_PGTO
+
+ %% Conciliação e relatórios batch
+ BATCHCON -->|READ/UPDATE| DDM_PGTO
+ BATCHCON -->|STORE| DDM_AUD
+ BATCHREL -->|READ| DDM_PGTO
+ BATCHREL -->|READ| DDM_BENEF
+
+ %% Relatórios online/on-demand
+ RELPGT -->|READ| DDM_PGTO
+ RELPGT -->|READ| DDM_BENEF
+ RELAUDIT -->|READ| DDM_AUD
 ```
 
-> **Instrução:** este é apenas um exemplo inicial com 6 programas.
-> Seu time deve mapear **todos os 15 programas** e os **4 DDMs**.
+> **Legenda:** seta sólida `CALLNAT` = chamada de subprograma; seta tracejada `CALLNAT?` = chamada não confirmada (ver órfãos); arestas para cilindros = acesso a dados (READ/STORE/UPDATE).
 
 ## Diagrama de Fluxo de Dados (DDMs)
 
@@ -85,8 +131,8 @@ flowchart LR
  subgraph "Armazenamento (Adabas)"
  DDM1[("BENEFICIARIO")]
  DDM2[("PAGAMENTO")]
- DDM3[("DDM 3: ???")]
- DDM4[("DDM 4: ???")]
+ DDM3[("PROGRAMA-SOCIAL")]
+ DDM4[("AUDITORIA")]
  end
 
  UI --> PROG
@@ -103,17 +149,21 @@ flowchart LR
 
 | Programa     | Chama (CALLNAT) | Lê (READ) DDMs | Escreve (STORE/UPDATE) DDMs | Observações |
 | ------------ | --------------- | -------------- | --------------------------- | ----------- |
-| CADBENF.NSN  |                 |                |                             |             |
-| CONBENF.NSN  |                 |                |                             |             |
-| REGPGTO.NSN  |                 |                |                             |             |
-| BATCHPGT.NSN |                 |                |                             |             |
-| CALCBENF.NSN |                 |                |                             |             |
-| VALCPF.NSN   |                 |                |                             |             |
-|              |                 |                |                             |             |
-|              |                 |                |                             |             |
-|              |                 |                |                             |             |
-|              |                 |                |                             |             |
-|              |                 |                |                             |             |
+| CADBENF.NSN  | VALBENEF, VALDOCS | BENEFICIARIO | BENEFICIARIO | Cadastro online; valida antes de gravar. |
+| CADDEPEND.NSN | — | BENEFICIARIO | BENEFICIARIO (PE DEPENDENTES) | Limita dependentes (PE). |
+| CADPROG.NSN  | — | PROGRAMA-SOCIAL | PROGRAMA-SOCIAL | Aplica FATOR-K. |
+| CONSBENF.NSN | — | BENEFICIARIO, PAGAMENTO | — | Consulta online; mascara CPF. |
+| CALCBENF.NSN | — | BENEFICIARIO, PROGRAMA-SOCIAL | PAGAMENTO | Núcleo de cálculo; ~4.800 linhas. |
+| CALCCORR.NSN | — | PAGAMENTO | PAGAMENTO | Sem chamador confirmado (ver órfãos). |
+| CALCDSCT.NSN | — | BENEFICIARIO, PAGAMENTO | PAGAMENTO | Aplica descontos/teto 30%. |
+| VALBENEF.NSN | — | BENEFICIARIO | — | Subprograma de validação. |
+| VALDOCS.NSN  | — | BENEFICIARIO | — | Subprograma de validação. |
+| VALELEG.NSN  | — | BENEFICIARIO, PROGRAMA-SOCIAL | — | Subprograma de elegibilidade. |
+| BATCHPGT.NSN | VALELEG, CALCBENF, CALCDSCT, (CALCCORR?) | BENEFICIARIO, PROGRAMA-SOCIAL | PAGAMENTO | Entry point mensal; ordenação por descritor. |
+| BATCHCON.NSN | — | PAGAMENTO | PAGAMENTO, AUDITORIA | Conciliação CNAB 240. |
+| BATCHREL.NSN | — | PAGAMENTO, BENEFICIARIO | — | Relatório consolidado por região. |
+| RELPGT.NSN   | — | PAGAMENTO, BENEFICIARIO | — | Relatório analítico de pagamentos. |
+| RELAUDIT.NSN | — | AUDITORIA | — | Filtra exclusões (EX). |
 |              |                 |                |                             |             |
 |              |                 |                |                             |             |
 |              |                 |                |                             |             |
@@ -123,13 +173,14 @@ flowchart LR
 
 > Liste aqui qualquer dependência circular encontrada (programa A chama B que chama A):
 
-- Nenhuma encontrada até agora.
+- Nenhuma encontrada. As chamadas fluem de forma acíclica (online/batch → validação/cálculo → DDMs).
 
 ## Programas Órfãos
 
 > Programas que não são chamados por nenhum outro (possíveis pontos de entrada ou código morto):
 
-- A investigar.
+- **Entry points (esperado serem órfãos de chamada):** `BATCHPGT.NSN`, `BATCHCON.NSN`, `BATCHREL.NSN` (jobs batch) e os programas online `CADBENF`, `CADDEPEND`, `CADPROG`, `CONSBENF`, `RELPGT`, `RELAUDIT` (acionados por terminal/scheduler, não por CALLNAT).
+- **Órfão real a investigar:** `CALCCORR.NSN` — calcula correção retroativa por IPCA, mas **nenhum `CALLNAT CALCCORR` foi confirmado** em outro programa. `GUIDE.md` sugere que `BATCHPGT` o chamaria, mas a leitura inicial não confirmou. Possível acionamento manual ou job não identificado. **Ver `mysteries-found.md`.**
 
 ---
 
