@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: SIFAP 2.0 — Ciclo Mensal de Pagamento
+  version: 0.1.0
+  description: >-
+    Contrato do endpoint de geração do ciclo mensal de pagamento
+    (feature 002-geracao-ciclo-pagamento). Rastreabilidade: REQ-011, REQ-012.
+    Esqueleto consistente com 02-spec-moderna/openapi.yaml; schemas detalhados no Estágio 3.
+
+servers:
+  - url: /api/v1
+    description: Base path (REST convention /api/v1/{resource})
+
+tags:
+  - name: payment
+    description: Processamento de Pagamentos
+
+paths:
+  /payment-cycles:
+    post:
+      tags: [payment]
+      summary: Gera o ciclo mensal de pagamento (só beneficiários ACTIVE, ordem do descritor)
+      description: >-
+        REQ-011, REQ-012. Processa beneficiários ACTIVE na ordenação determinística do
+        descritor, recalcula o benefício e aplica descontos, criando um pagamento por
+        beneficiário elegível. Idempotente por competência (FR-006); retomável (FR-012).
+      operationId: generateMonthlyCycle
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CycleRequest'
+      responses:
+        '201':
+          description: Ciclo gerado (ou retomado) com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCycleSummary'
+        '400':
+          description: Competência inválida ou futura (FR-013)
+        '409':
+          description: Já existe um ciclo em execução para esta competência (lock por competência, R7)
+
+  /payments/{id}:
+    get:
+      tags: [payment]
+      summary: Consulta um pagamento gerado
+      description: REQ-011
+      operationId: getPayment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Pagamento encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentView'
+        '404':
+          description: Pagamento não encontrado
+
+components:
+  schemas:
+    CycleRequest:
+      type: object
+      description: Competência opcional; default = competência vigente (FR-013)
+      properties:
+        competencia:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: AAAAMM; se omitido, usa o mês corrente. Recusada se futura.
+          example: '202606'
+    PaymentCycleSummary:
+      type: object
+      description: Totalizadores do ciclo (FR-008)
+      properties:
+        referenceYearMonth:
+          type: integer
+          example: 202606
+        cycleNumber:
+          type: integer
+        status:
+          type: string
+          enum: [RUNNING, COMPLETED, FAILED]
+        processed:
+          type: integer
+        generated:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: integer
+        totalGross:
+          type: string
+          description: BigDecimal truncado em 2 casas (FR-014)
+          example: '1234567.89'
+        totalDeductions:
+          type: string
+          example: '234567.89'
+        totalNet:
+          type: string
+          example: '1000000.00'
+    PaymentView:
+      type: object
+      properties:
+        paymentNumber:
+          type: integer
+          format: int64
+        maskedCpf:
+          type: string
+          description: CPF mascarado (FR-010)
+          example: 'XXX.XXX.789-NN'
+        programCode:
+          type: string
+          example: '0001'
+        referenceYearMonth:
+          type: integer
+          example: 202606
+        grossValue:
+          type: string
+          example: '1500.00'
+        totalDeduction:
+          type: string
+          example: '450.00'
+        netValue:
+          type: string
+          example: '1050.00'
+        status:
+          type: string
+          enum: [P, G, E, C, D, X, R]
+          example: G
