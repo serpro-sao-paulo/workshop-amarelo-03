@@ -1,7 +1,7 @@
 ---
 description: "Checklist de self-review para segurança e problemas OWASP Top 10 em uma feature recém-construída."
 argument-hint: "context=payment files=PaymentController.java,PaymentService.java,Payment.java"
-agent: agent
+agent: builder
 tools: ['search/codebase', 'edit/editFiles']
 ---
 

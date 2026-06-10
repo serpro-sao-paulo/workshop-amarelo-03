@@ -1,7 +1,7 @@
 ---
 description: "Escreve uma GitHub issue de alta qualidade pronta para ser assumida pelo Copilot Agent na nuvem."
 argument-hint: "feature=\"Add pagination to the payment list endpoint\" context=payment reqs=REQ-015"
-agent: agent
+agent: evolution
 tools: ['search/codebase', 'web/githubRepo', 'edit/editFiles']
 ---
 

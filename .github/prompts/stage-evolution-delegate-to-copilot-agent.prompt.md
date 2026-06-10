@@ -1,7 +1,7 @@
 ---
 description: "Entrega uma issue ao GitHub Copilot Agent na nuvem e acompanha o PR resultante."
 argument-hint: "issue=04-evolucao/issues/add-pagination-payments.md"
-agent: agent
+agent: evolution
 tools: ['web/githubRepo', 'edit/editFiles']
 ---
 

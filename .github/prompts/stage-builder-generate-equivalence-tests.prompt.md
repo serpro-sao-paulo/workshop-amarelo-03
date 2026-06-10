@@ -1,7 +1,7 @@
 ---
 description: "Gera testes JUnit que validam se a implementação Java moderna produz as mesmas saídas que o original Natural para as mesmas entradas."
 argument-hint: "class=com.datacorp.app.payment.PaymentService method=calculateAmount"
-agent: agent
+agent: builder
 tools: ['search/codebase', 'edit/editFiles', 'execute/runTests']
 ---
 

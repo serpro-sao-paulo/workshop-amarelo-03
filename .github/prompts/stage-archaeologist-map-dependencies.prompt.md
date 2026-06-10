@@ -1,7 +1,7 @@
 ---
 description: "Mapeia dependências program-to-program (CALLNAT, INCLUDE) e program-to-data (acesso a DDM) para um escopo escolhido."
 argument-hint: "scope=01-arqueologia/legado-sifap/natural-programs/ recursive=true"
-agent: agent
+agent: archaeologist
 tools: ['search/codebase', 'search/usages', 'edit/editFiles']
 ---
 

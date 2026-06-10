@@ -1,7 +1,7 @@
 ---
 description: "Encerra o Estágio 4 com uma retrospectiva da equipe sobre a experiência com agentes no dia."
 argument-hint: "team=\"Team 07\""
-agent: agent
+agent: evolution
 tools: ['search/codebase', 'edit/editFiles']
 ---
 

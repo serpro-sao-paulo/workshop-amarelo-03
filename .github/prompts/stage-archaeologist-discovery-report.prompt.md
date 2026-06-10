@@ -1,7 +1,7 @@
 ---
 description: "Sintetiza as saídas do Estágio 1 em um único relatório de descoberta pronto para passagem ao Estágio 2."
 argument-hint: "team=\"Team 07\""
-agent: agent
+agent: archaeologist
 tools: ['search/codebase', 'edit/editFiles']
 ---
 

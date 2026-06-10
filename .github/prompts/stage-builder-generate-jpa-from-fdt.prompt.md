@@ -1,7 +1,7 @@
 ---
 description: "Gera classes de entidade JPA a partir de definições Adabas FDT, com JSONB para campos MU/PE."
 argument-hint: "ddm=01-arqueologia/legado-sifap/adabas-ddms/DDM001.ddm context=payment package=com.datacorp.app.payment dateformat=YYYYMMDD"
-agent: agent
+agent: builder
 tools: ['search/codebase', 'edit/editFiles']
 ---
 
